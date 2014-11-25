@@ -70,7 +70,15 @@ void set_pwm(int pwm, unsigned long t_high, unsigned long period)
   asprintf(&path,"/sys/class/pwm/pwmchip0/pwm%d/duty_cycle",pwm);
   printf("PATH TO set pwm duty-cycle\n%s\n",path);
   fptr = fopen(path,"w");
-  fprintf(fptr, "%d",t_high);
+  fprintf(fptr, "%lu",t_high);
+  fclose(fptr);
+  free(path);
+
+  // Write the Period
+  asprintf(&path,"/sys/class/pwm/pwmchip0/pwm%d/period",pwm);
+  printf("PATH TO set pwm period\n%s\n",path);
+  fptr = fopen(path,"w");
+  fprintf(fptr, "%lu",period);
   fclose(fptr);
   free(path);
 
