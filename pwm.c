@@ -3,6 +3,8 @@
 #include <curses.h>
 #define TRI_STATE_ALL 214
 
+#define Tmin 340000
+#define Tmax 2100000
 int pwm_gpio_ed[4]={103,105,106,109};
 int pwm_gpio_l[4]={12,13,182,183};
 int pwm_oe_l[4]={251,253,254,257};
@@ -26,8 +28,17 @@ void set_pwm(int pwm, unsigned long t_high, unsigned long period)
   fptr = fopen(path,"w");
   fprintf(fptr, "254");
   fclose(fptr);
-  
   free(path);
+  
+  // export pwm channel
+  
+  asprintf(&path,"/sys/class/pwm/pwmchip0/export",TRI_STATE_ALL);
+  printf("Exporting PWM channel:%d\n\n",pwm);
+  fptr = fopen(path,"w");
+  fprintf(fptr, "%d",pwm);
+  fclose(fptr);
+
+
   // Assume the gpios are already exported for now
 
   //TRISTATE all the pins by writing into the TRI_STATE_ALL
@@ -163,15 +174,19 @@ void main(int argc, char *argv[])
     set_only_pwm(pwm,Thigh,period);
     scanf("%c",&command);
     printf ("Command entered %x\n",command);
-    if(command == 'l')
+    if(command == 0x44)
       Thigh-=90000;
-    else if(command == 'r')
+    else if(command == 0x43)
       Thigh+=90000;
     else if(command == 'L')
-      Thigh=340000;
+      Thigh=Tmin;
     else if(command == 'R')
-      Thigh=2100000;
+      Thigh=Tmax;
 
+    if(Thigh < Tmin)
+      Thigh = Tmin;
+    if(Thigh > Tmax)
+      Thigh = Tmax;
     printf("New Thigh: %lu\n",Thigh);
     fflush(stdin);
     command = 0;
