@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
-
+#include <curses.h>
 #define TRI_STATE_ALL 214
 
 int pwm_gpio_ed[4]={103,105,106,109};
@@ -13,6 +13,21 @@ void set_pwm(int pwm, unsigned long t_high, unsigned long period)
   char *path;
   FILE *fptr;
   // Export the gpios for the pwm io, gpio pullup, & TRI_STATE_ALL
+  asprintf(&path,"/sys/class/gpio/export",TRI_STATE_ALL);
+  printf("Exporting Pins:\n\n");
+  fptr = fopen(path,"w");
+  fprintf(fptr, "182");
+  fclose(fptr);
+  
+  fptr = fopen(path,"w");
+  fprintf(fptr, "214");
+  fclose(fptr);
+  
+  fptr = fopen(path,"w");
+  fprintf(fptr, "254");
+  fclose(fptr);
+  
+  free(path);
   // Assume the gpios are already exported for now
 
   //TRISTATE all the pins by writing into the TRI_STATE_ALL
@@ -28,14 +43,6 @@ void set_pwm(int pwm, unsigned long t_high, unsigned long period)
   printf("PATH TO ENABLE GPIO as OUTPUT\n%s\n",path);
   fptr = fopen(path,"w");
   fprintf(fptr, "high");
-  fclose(fptr);
-  free(path);
-
-  //Set the corresponding pin as HighZ input to disable pull-up resister
-  asprintf(&path,"/sys/class/gpio/gpio%d/direction",pwm_pullup_l[pwm]);
-  printf("PATH TO set HighZ input\n%s\n",path);
-  fptr = fopen(path,"w");
-  fprintf(fptr, "in");
   fclose(fptr);
   free(path);
 
@@ -88,17 +95,49 @@ void set_pwm(int pwm, unsigned long t_high, unsigned long period)
   fptr = fopen(path,"w");
   fprintf(fptr, "1");
   fclose(fptr);
+  free(path);  
+}
+
+void set_only_pwm(int pwm, unsigned long t_high, unsigned long period)
+{
+  char *path;
+  FILE *fptr;
+  // Disable pwm channel first to avoid gitter
+  asprintf(&path,"/sys/class/pwm/pwmchip0/pwm%d/enable",pwm);
+  fptr = fopen(path,"w");
+  fprintf(fptr, "0");
+  fclose(fptr);
   free(path);
 
+  // Write the Thigh as the duty cycle
+  asprintf(&path,"/sys/class/pwm/pwmchip0/pwm%d/duty_cycle",pwm);
+  fptr = fopen(path,"w");
+  fprintf(fptr, "%lu",t_high);
+  fclose(fptr);
+  free(path);
 
+  // Write the Period
+  asprintf(&path,"/sys/class/pwm/pwmchip0/pwm%d/period",pwm);
+  fptr = fopen(path,"w");
+  fprintf(fptr, "%lu",period);
+  fclose(fptr);
+  free(path);
 
-  
+  //Enable pwm channel
+  asprintf(&path,"/sys/class/pwm/pwmchip0/pwm%d/enable",pwm);
+  fptr = fopen(path,"w");
+  fprintf(fptr, "1");
+  fclose(fptr);
+  free(path);
+
 }
+
 void main(int argc, char *argv[])
 {
   int duty_cycle;
   unsigned long period, Thigh;
   int pwm;
+  char command;
   if (argc == 4)
   {
     //printf("pwm signal requested\n");
@@ -117,6 +156,25 @@ void main(int argc, char *argv[])
   printf("PWM channel sel : %d\n",pwm);
   printf("Calculated Thigh: %lu\n",Thigh);
   printf("Total Period    : %lu nSec\n",period);
-
   set_pwm(pwm,Thigh,period);
+ 
+  while(command != 'x')
+  { 
+    set_only_pwm(pwm,Thigh,period);
+    scanf("%c",&command);
+    printf ("Command entered %x\n",command);
+    if(command == 'l')
+      Thigh-=90000;
+    else if(command == 'r')
+      Thigh+=90000;
+    else if(command == 'L')
+      Thigh=340000;
+    else if(command == 'R')
+      Thigh=2100000;
+
+    printf("New Thigh: %lu\n",Thigh);
+    fflush(stdin);
+    command = 0;
+  }
+  printf("pwm command and control complete. G'bye\n");
 }
