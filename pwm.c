@@ -3,8 +3,9 @@
 #include <curses.h>
 #define TRI_STATE_ALL 214
 
-#define Tmin 340000
-#define Tmax 2100000
+#define Tmin    360000
+#define Tmax    1900000
+#define Tperiod 21500000
 int pwm_gpio_ed[4]={103,105,106,109};
 int pwm_gpio_l[4]={12,13,182,183};
 int pwm_oe_l[4]={251,253,254,257};
@@ -113,6 +114,13 @@ void set_only_pwm(int pwm, unsigned long t_high, unsigned long period)
 {
   char *path;
   FILE *fptr;
+
+  if(t_high<Tmin)
+    t_high = Tmin;
+  if(t_high>Tmax)
+    t_high = Tmax;
+
+  printf("New Thigh = %lu\n",t_high);
   // Disable pwm channel first to avoid gitter
   asprintf(&path,"/sys/class/pwm/pwmchip0/pwm%d/enable",pwm);
   fptr = fopen(path,"w");
@@ -143,6 +151,18 @@ void set_only_pwm(int pwm, unsigned long t_high, unsigned long period)
 
 }
 
+void stop_pwm(int pwm)
+{
+  char *path;
+  FILE *fptr;
+  
+  asprintf(&path,"/sys/class/pwm/pwmchip0/pwm%d/enable",pwm);
+  fptr = fopen(path,"w");
+  fprintf(fptr, "0");
+  fclose(fptr);
+  free(path);
+  
+}
 void main(int argc, char *argv[])
 {
   int duty_cycle;
@@ -164,32 +184,37 @@ void main(int argc, char *argv[])
   period     = strtol(argv[3],NULL,10);
   Thigh      = (period/100)*duty_cycle;
 
+  if (period = 0){
+    period = Tperiod;
+    Thigh = (period/100)*duty_cycle;
+  }
   printf("PWM channel sel : %d\n",pwm);
   printf("Calculated Thigh: %lu\n",Thigh);
   printf("Total Period    : %lu nSec\n",period);
   set_pwm(pwm,Thigh,period);
  
-  while(command != 'x')
+  while(1)
   { 
     set_only_pwm(pwm,Thigh,period);
     scanf("%c",&command);
     printf ("Command entered %x\n",command);
-    if(command == 0x44)
-      Thigh-=90000;
-    else if(command == 0x43)
-      Thigh+=90000;
-    else if(command == 'L')
-      Thigh=Tmin;
-    else if(command == 'R')
-      Thigh=Tmax;
 
-    if(Thigh < Tmin)
-      Thigh = Tmin;
-    if(Thigh > Tmax)
-      Thigh = Tmax;
-    printf("New Thigh: %lu\n",Thigh);
+    switch(command) {
+      case 0x44: Thigh -=90000;break;
+      case 0x43: Thigh +=90000;break;
+      case 'L' : Thigh = Tmin;break;
+      case 'R' : Thigh = Tmax;break;
+        set_only_pwm(pwm,Thigh,period);
+        break;
+      case 'x':
+      case 'X': goto EXIT;
+      default: printf("Unknown option\n\n");
+    }
+ 
     fflush(stdin);
     command = 0;
   }
+EXIT:
+  stop_pwm(pwm);
   printf("pwm command and control complete. G'bye\n");
 }
